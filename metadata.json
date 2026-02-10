@@ -1,0 +1,5 @@
+{
+  "name": "AI Webpage Generator",
+  "description": "Generate three distinct, AI-powered webpage versions from a single prompt with real-time live previews. Select your favorite design and export it to HTML, React, Vue, or Svelte.",
+  "requestFramePermissions": []
+}
