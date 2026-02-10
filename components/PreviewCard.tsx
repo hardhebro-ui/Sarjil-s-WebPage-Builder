@@ -37,13 +37,7 @@ export const PreviewCard: React.FC<PreviewCardProps> = ({ version, onSelect, onF
 
   const renderStatusOverlay = () => {
     if (version.status === 'idle') {
-      return (
-        <div className="absolute inset-0 bg-slate-800 flex flex-col items-center justify-center p-4 text-center">
-          <DesignPlaceholderIcon className="h-16 w-16 text-slate-600 mb-4" />
-          <h4 className="font-semibold text-slate-300">Awaiting Your Ideas</h4>
-          <p className="text-sm text-slate-400">Your generated design will appear here.</p>
-        </div>
-      );
+      return null;
     }
     if (version.status === 'generating' && !version.code) {
       return (

@@ -16,10 +16,17 @@ const promptSuggestions = [
 ];
 
 const initialVersions: Version[] = [
-  { id: 1, title: 'Version A', prompt: '', code: '', status: 'idle' },
-  { id: 2, title: 'Version B', prompt: '', code: '', status: 'idle' },
-  { id: 3, title: 'Version C', prompt: '', code: '', status: 'idle' },
+  { id: 1, title: 'Minimal & Clean', prompt: '', code: '', status: 'idle' },
+  { id: 2, title: 'Bold Startup', prompt: '', code: '', status: 'idle' },
+  { id: 3, title: 'Creative & Modern', prompt: '', code: '', status: 'idle' },
 ];
+
+const styleModifiers: Record<string, string> = {
+  'Minimal & Clean': 'with a minimal and clean design aesthetic. Emphasize whitespace, typography, and a simple, elegant color palette.',
+  'Bold Startup': 'with a bold, modern design suitable for a tech startup. Use vibrant colors, strong typography, and clear calls-to-action.',
+  'Creative & Modern': 'with a creative and artistic modern design. Feel free to use unconventional layouts, interesting color combinations, and unique visual elements.',
+};
+
 
 const App: React.FC = () => {
   const [versions, setVersions] = useState<Version[]>(initialVersions);
@@ -29,9 +36,14 @@ const App: React.FC = () => {
 
   const handleGenerate = useCallback(async (prompt: string) => {
     setIsGenerating(true);
-    setVersions(initialVersions.map(v => ({ ...v, prompt, status: 'generating' })));
+    const versionsToGenerate = initialVersions.map(v => ({ ...v, prompt, status: 'generating' as const }));
+    setVersions(versionsToGenerate);
 
-    const generators = Array(3).fill(null).map(() => generateInitialCodeStream(prompt));
+    const generators = versionsToGenerate.map(version => {
+      const styleModifier = styleModifiers[version.title] || '';
+      const augmentedPrompt = `${prompt} ${styleModifier}`;
+      return generateInitialCodeStream(augmentedPrompt);
+    });
 
     try {
       await Promise.all(generators.map(async (generator, index) => {
