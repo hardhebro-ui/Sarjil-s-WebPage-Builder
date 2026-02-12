@@ -1,8 +1,8 @@
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import type { Version } from '../types';
 import { ExportFormat } from '../types';
-import { convertCode } from '../services/geminiService';
+import { generateZip } from '../services/zipService';
 import { CodeBlock } from './CodeBlock';
 import { CloseIcon } from './icons/CloseIcon';
 import { HtmlIcon } from './icons/HtmlIcon';
@@ -10,6 +10,7 @@ import { ReactIcon } from './icons/ReactIcon';
 import { VueIcon } from './icons/VueIcon';
 import { SvelteIcon } from './icons/SvelteIcon';
 import { LoadingSpinnerIcon } from './icons/LoadingSpinnerIcon';
+import { DownloadIcon } from './icons/DownloadIcon';
 
 interface ExportModalProps {
   version: Version;
@@ -25,38 +26,7 @@ const formatOptions = [
 
 export const ExportModal: React.FC<ExportModalProps> = ({ version, onClose }) => {
   const [activeFormat, setActiveFormat] = useState<ExportFormat>(ExportFormat.HTML);
-  
-  // FIX: Replaced reduce with a more type-safe filter and fromEntries to avoid potential type inference issues.
-  const initialConvertedCode = Object.fromEntries(
-    Object.entries(version.convertedCode || {}).filter(([, value]) => value !== null)
-  );
-
-  const [convertedCode, setConvertedCode] = useState<Record<string, string>>({
-    [ExportFormat.HTML]: version.code,
-    ...initialConvertedCode,
-  });
-
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const handleFormatChange = useCallback(async (format: ExportFormat) => {
-    setActiveFormat(format);
-    if (convertedCode[format] || format === ExportFormat.HTML) {
-      return;
-    }
-
-    setIsLoading(true);
-    setError(null);
-    try {
-      const result = await convertCode(version.code, format);
-      setConvertedCode(prev => ({ ...prev, [format]: result }));
-    } catch (e) {
-      console.error("Conversion failed", e);
-      setError('Failed to convert code. Please try again.');
-    } finally {
-      setIsLoading(false);
-    }
-  }, [version.code, convertedCode]);
+  const [isDownloading, setIsDownloading] = useState(false);
 
   useEffect(() => {
     const handleEsc = (event: KeyboardEvent) => {
@@ -68,7 +38,26 @@ export const ExportModal: React.FC<ExportModalProps> = ({ version, onClose }) =>
     return () => window.removeEventListener('keydown', handleEsc);
   }, [onClose]);
 
-  const currentCode = convertedCode[activeFormat] || '';
+  const codeForFormat = {
+    [ExportFormat.HTML]: version.code,
+    ...(version.convertedCode || {}),
+  };
+
+  const currentCode = codeForFormat[activeFormat] || '';
+
+  const handleDownload = async () => {
+    if (!currentCode) return;
+    setIsDownloading(true);
+    try {
+        const cleanTitle = version.title.replace(/[^a-z0-9]/gi, '-').toLowerCase();
+        await generateZip(currentCode, activeFormat, cleanTitle);
+    } catch (err) {
+        console.error("Failed to generate zip", err);
+    } finally {
+        setIsDownloading(false);
+    }
+  };
+
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={onClose}>
@@ -78,9 +67,23 @@ export const ExportModal: React.FC<ExportModalProps> = ({ version, onClose }) =>
       >
         <header className="flex items-center justify-between p-4 border-b border-slate-700 flex-shrink-0">
           <h2 className="text-xl font-bold text-white">Export Code - {version.title}</h2>
-          <button onClick={onClose} className="text-slate-400 hover:text-white transition-colors">
-            <CloseIcon className="h-6 w-6" />
-          </button>
+          <div className="flex items-center gap-4">
+            <button
+              onClick={handleDownload}
+              disabled={isDownloading || !currentCode}
+              className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white font-semibold rounded-md disabled:bg-indigo-400 disabled:cursor-not-allowed hover:bg-indigo-500 transition-colors"
+            >
+              {isDownloading ? (
+                  <LoadingSpinnerIcon className="animate-spin h-5 w-5" />
+              ) : (
+                  <DownloadIcon className="h-5 w-5" />
+              )}
+              {isDownloading ? 'Zipping...' : 'Download ZIP'}
+            </button>
+            <button onClick={onClose} className="text-slate-400 hover:text-white transition-colors">
+              <CloseIcon className="h-6 w-6" />
+            </button>
+          </div>
         </header>
         
         <div className="flex flex-col md:flex-row flex-grow min-h-0">
@@ -89,7 +92,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({ version, onClose }) =>
               {formatOptions.map(({ id, label, icon: Icon }) => (
                 <button
                   key={id}
-                  onClick={() => handleFormatChange(id)}
+                  onClick={() => setActiveFormat(id)}
                   className={`w-full flex items-center p-2 rounded-md text-sm font-medium transition-colors ${
                     activeFormat === id
                       ? 'bg-indigo-600 text-white'
@@ -104,15 +107,13 @@ export const ExportModal: React.FC<ExportModalProps> = ({ version, onClose }) =>
           </aside>
 
           <main className="flex-grow p-1 overflow-auto bg-slate-900">
-            {isLoading ? (
+            {currentCode ? (
+              <CodeBlock code={currentCode} language={activeFormat === 'html' ? 'html' : 'javascript'} />
+            ) : (
                <div className="h-full flex flex-col items-center justify-center p-4">
                 <LoadingSpinnerIcon className="animate-spin h-8 w-8 text-white mb-4" />
-                <p className="text-slate-300 text-center">Converting to {activeFormat.charAt(0).toUpperCase() + activeFormat.slice(1)}...</p>
+                <p className="text-slate-300 text-center">Loading code...</p>
               </div>
-            ) : error ? (
-              <div className="h-full flex items-center justify-center text-red-400">{error}</div>
-            ) : (
-              <CodeBlock code={currentCode} language={activeFormat === 'html' ? 'html' : 'javascript'} />
             )}
           </main>
         </div>

@@ -6,7 +6,8 @@ import { ExportModal } from './components/ExportModal';
 import { FullScreenPreview } from './components/FullScreenPreview';
 import { GithubIcon } from './components/icons/GithubIcon';
 import type { Version } from './types';
-import { generateInitialCodeStream } from './services/geminiService';
+import { ExportFormat } from './types';
+import { generateCodeForAllFormats } from './services/geminiService';
 
 const promptSuggestions = [
   'A modern landing page for a new meditation app',
@@ -16,9 +17,9 @@ const promptSuggestions = [
 ];
 
 const initialVersions: Version[] = [
-  { id: 1, title: 'Minimal & Clean', prompt: '', code: '', status: 'idle' },
-  { id: 2, title: 'Bold Startup', prompt: '', code: '', status: 'idle' },
-  { id: 3, title: 'Creative & Modern', prompt: '', code: '', status: 'idle' },
+  { id: 1, title: 'Minimal & Clean', prompt: '', code: '', status: 'idle', convertedCode: {} },
+  { id: 2, title: 'Bold Startup', prompt: '', code: '', status: 'idle', convertedCode: {} },
+  { id: 3, title: 'Creative & Modern', prompt: '', code: '', status: 'idle', convertedCode: {} },
 ];
 
 const styleModifiers: Record<string, string> = {
@@ -36,34 +37,54 @@ const App: React.FC = () => {
 
   const handleGenerate = useCallback(async (prompt: string) => {
     setIsGenerating(true);
-    const versionsToGenerate = initialVersions.map(v => ({ ...v, prompt, status: 'generating' as const }));
+    const versionsToGenerate = initialVersions.map(v => ({ 
+      ...v, 
+      prompt, 
+      status: 'generating' as const, 
+      code: '',
+      convertedCode: {} 
+    }));
     setVersions(versionsToGenerate);
 
-    const generators = versionsToGenerate.map(version => {
+    const generationPromises = versionsToGenerate.map((version, index) => {
       const styleModifier = styleModifiers[version.title] || '';
       const augmentedPrompt = `${prompt} ${styleModifier}`;
-      return generateInitialCodeStream(augmentedPrompt);
+
+      const onHtmlChunk = (chunk: string) => {
+        setVersions(prev => {
+          const newVersions = [...prev];
+          if (newVersions[index] && newVersions[index].status === 'generating') {
+            newVersions[index] = { 
+              ...newVersions[index], 
+              code: newVersions[index].code + chunk 
+            };
+          }
+          return newVersions;
+        });
+      };
+
+      return generateCodeForAllFormats(augmentedPrompt, onHtmlChunk).then(allCode => {
+        setVersions(prev => {
+          const newVersions = [...prev];
+          if (newVersions[index]) {
+            newVersions[index] = {
+              ...newVersions[index],
+              status: 'completed',
+              code: allCode.html,
+              convertedCode: {
+                [ExportFormat.REACT]: allCode.react,
+                [ExportFormat.VUE]: allCode.vue,
+                [ExportFormat.SVELTE]: allCode.svelte,
+              },
+            };
+          }
+          return newVersions;
+        });
+      });
     });
 
     try {
-      await Promise.all(generators.map(async (generator, index) => {
-        let fullCode = '';
-        for await (const codeChunk of generator) {
-          if (codeChunk) {
-            fullCode += codeChunk;
-            setVersions(prev => {
-              const newVersions = [...prev];
-              newVersions[index] = { ...newVersions[index], code: fullCode };
-              return newVersions;
-            });
-          }
-        }
-        setVersions(prev => {
-          const newVersions = [...prev];
-          newVersions[index] = { ...newVersions[index], status: 'completed' };
-          return newVersions;
-        });
-      }));
+      await Promise.all(generationPromises);
     } catch (error) {
       console.error("Generation failed:", error);
       setVersions(prev => prev.map(v => ({ ...v, status: 'error' })));

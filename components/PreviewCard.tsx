@@ -4,7 +4,6 @@ import type { Version } from '../types';
 import { useDebounce } from '../hooks/useDebounce';
 import { CheckIcon } from './icons/CheckIcon';
 import { ExpandIcon } from './icons/ExpandIcon';
-import { DesignPlaceholderIcon } from './icons/DesignPlaceholderIcon';
 import { LoadingSpinnerIcon } from './icons/LoadingSpinnerIcon';
 
 interface PreviewCardProps {
@@ -36,21 +35,21 @@ export const PreviewCard: React.FC<PreviewCardProps> = ({ version, onSelect, onF
   }, [debouncedCode]);
 
   const renderStatusOverlay = () => {
-    if (version.status === 'idle') {
-      return null;
-    }
-    if (version.status === 'generating' && !version.code) {
+    if (version.status === 'generating') {
       return (
-        <div className="absolute inset-0 bg-slate-800 flex flex-col items-center justify-center p-4">
+        <div className="absolute inset-0 bg-slate-800/80 backdrop-blur-sm flex flex-col items-center justify-center p-4 transition-opacity duration-300">
           <LoadingSpinnerIcon className="animate-spin h-12 w-12 text-indigo-500" />
-          <p className="text-slate-300 text-center mt-4">Generating preview...</p>
+          <p className="text-slate-300 text-center mt-4">Generating versions...</p>
         </div>
       );
     }
      if (version.status === 'error') {
       return (
         <div className="absolute inset-0 bg-slate-800 flex flex-col items-center justify-center p-4">
-          <p className="text-red-400 text-center">Generation failed. Please try again.</p>
+          <p className="text-red-400 text-center font-semibold">Generation Failed</p>
+          <p className="text-slate-400 text-center text-sm mt-1">
+            This may be due to API rate limits. Please try again in a moment.
+          </p>
         </div>
       );
     }
@@ -72,13 +71,13 @@ export const PreviewCard: React.FC<PreviewCardProps> = ({ version, onSelect, onF
         </button>
       </div>
       <div className="flex-grow relative aspect-[4/3] bg-white">
-        {renderStatusOverlay()}
         <iframe
           title={version.title}
           srcDoc={iframeSrcDoc}
           sandbox="allow-scripts allow-same-origin"
           className="w-full h-full border-0"
         />
+        {renderStatusOverlay()}
       </div>
       <div className="p-4 bg-slate-800/50">
         <button
