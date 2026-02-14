@@ -5,6 +5,7 @@ import { useDebounce } from '../hooks/useDebounce';
 import { CheckIcon } from './icons/CheckIcon';
 import { ExpandIcon } from './icons/ExpandIcon';
 import { LoadingSpinnerIcon } from './icons/LoadingSpinnerIcon';
+import { DesignPlaceholderIcon } from './icons/DesignPlaceholderIcon';
 
 interface PreviewCardProps {
   version: Version;
@@ -35,11 +36,31 @@ export const PreviewCard: React.FC<PreviewCardProps> = ({ version, onSelect, onF
   }, [debouncedCode]);
 
   const renderStatusOverlay = () => {
+    if (version.status === 'idle') {
+      return (
+        <div className="absolute inset-0 bg-slate-800 flex flex-col items-center justify-center p-4">
+          <DesignPlaceholderIcon className="h-16 w-16 text-slate-600 mb-4" />
+          <p className="text-slate-500 text-center font-medium">
+            Your generated preview will appear here.
+          </p>
+        </div>
+      );
+    }
     if (version.status === 'generating') {
+      const progress = version.progress || 0;
       return (
         <div className="absolute inset-0 bg-slate-800/80 backdrop-blur-sm flex flex-col items-center justify-center p-4 transition-opacity duration-300">
           <LoadingSpinnerIcon className="animate-spin h-12 w-12 text-indigo-500" />
-          <p className="text-slate-300 text-center mt-4">Generating versions...</p>
+          <p className="text-slate-300 text-center mt-4 mb-3">Generating preview...</p>
+          <div className="w-full max-w-xs bg-slate-600 rounded-full h-3 relative overflow-hidden">
+            <div 
+              className="bg-indigo-500 h-full rounded-full transition-all duration-500 ease-out" 
+              style={{ width: `${progress}%` }}
+            ></div>
+             <span className="absolute inset-0 flex items-center justify-center text-[10px] font-bold text-white tracking-wider">
+              {Math.round(progress)}%
+            </span>
+          </div>
         </div>
       );
     }
@@ -62,7 +83,7 @@ export const PreviewCard: React.FC<PreviewCardProps> = ({ version, onSelect, onF
         <h3 className="font-bold text-slate-100">{version.title}</h3>
         <button
           onClick={onFullScreen}
-          disabled={version.status !== 'completed'}
+          disabled={version.status === 'generating' || version.status === 'idle'}
           className="text-slate-400 hover:text-white transition-colors disabled:text-slate-600 disabled:cursor-not-allowed"
           aria-label="View in full screen"
           title="View in full screen"

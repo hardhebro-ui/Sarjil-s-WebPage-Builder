@@ -1,5 +1,5 @@
 
-export type GenerationStatus = 'idle' | 'generating' | 'completed' | 'error';
+export type GenerationStatus = 'idle' | 'generating' | 'preview-ready' | 'completed' | 'error';
 
 export interface Version {
   id: number;
@@ -7,6 +7,7 @@ export interface Version {
   prompt: string;
   code: string;
   status: GenerationStatus;
+  progress?: number;
   convertedCode?: Partial<Record<ExportFormat, string | null>>;
 }
 

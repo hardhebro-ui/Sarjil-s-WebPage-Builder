@@ -5,6 +5,7 @@ import { PreviewCard } from './components/PreviewCard';
 import { ExportModal } from './components/ExportModal';
 import { FullScreenPreview } from './components/FullScreenPreview';
 import { GithubIcon } from './components/icons/GithubIcon';
+import { AnimatedBackground } from './components/AnimatedBackground';
 import type { Version } from './types';
 import { ExportFormat } from './types';
 import { generateCodeForAllFormats } from './services/geminiService';
@@ -17,9 +18,9 @@ const promptSuggestions = [
 ];
 
 const initialVersions: Version[] = [
-  { id: 1, title: 'Minimal & Clean', prompt: '', code: '', status: 'idle', convertedCode: {} },
-  { id: 2, title: 'Bold Startup', prompt: '', code: '', status: 'idle', convertedCode: {} },
-  { id: 3, title: 'Creative & Modern', prompt: '', code: '', status: 'idle', convertedCode: {} },
+  { id: 1, title: 'Minimal & Clean', prompt: '', code: '', status: 'idle', convertedCode: {}, progress: 0 },
+  { id: 2, title: 'Bold Startup', prompt: '', code: '', status: 'idle', convertedCode: {}, progress: 0 },
+  { id: 3, title: 'Creative & Modern', prompt: '', code: '', status: 'idle', convertedCode: {}, progress: 0 },
 ];
 
 const styleModifiers: Record<string, string> = {
@@ -42,7 +43,8 @@ const App: React.FC = () => {
       prompt, 
       status: 'generating' as const, 
       code: '',
-      convertedCode: {} 
+      convertedCode: {},
+      progress: 0,
     }));
     setVersions(versionsToGenerate);
 
@@ -62,15 +64,44 @@ const App: React.FC = () => {
           return newVersions;
         });
       };
+      
+      const onProgressUpdate = (progress: number) => {
+        setVersions(prev => {
+          const newVersions = [...prev];
+          const currentStatus = newVersions[index]?.status;
+          if (newVersions[index] && (currentStatus === 'generating' || currentStatus === 'preview-ready')) {
+            newVersions[index] = {
+              ...newVersions[index],
+              progress: progress,
+            };
+          }
+          return newVersions;
+        });
+      };
+      
+      const onHtmlComplete = (fullHtml: string) => {
+         setVersions(prev => {
+          const newVersions = [...prev];
+          if (newVersions[index] && newVersions[index].status === 'generating') {
+            newVersions[index] = { 
+              ...newVersions[index], 
+              code: fullHtml,
+              status: 'preview-ready',
+            };
+          }
+          return newVersions;
+        });
+      };
 
-      return generateCodeForAllFormats(augmentedPrompt, onHtmlChunk).then(allCode => {
+      return generateCodeForAllFormats(augmentedPrompt, onHtmlChunk, onProgressUpdate, onHtmlComplete).then(allCode => {
         setVersions(prev => {
           const newVersions = [...prev];
           if (newVersions[index]) {
             newVersions[index] = {
               ...newVersions[index],
               status: 'completed',
-              code: allCode.html,
+              code: allCode.html, // Ensure final HTML is set
+              progress: 100,
               convertedCode: {
                 [ExportFormat.REACT]: allCode.react,
                 [ExportFormat.VUE]: allCode.vue,
@@ -87,15 +118,16 @@ const App: React.FC = () => {
       await Promise.all(generationPromises);
     } catch (error) {
       console.error("Generation failed:", error);
-      setVersions(prev => prev.map(v => ({ ...v, status: 'error' })));
+      setVersions(prev => prev.map(v => ({ ...v, status: 'error', progress: 0 })));
     } finally {
       setIsGenerating(false);
     }
   }, []);
 
   return (
-    <div className="min-h-screen bg-slate-900 text-white selection:bg-indigo-500/30">
-      <header className="py-4 px-4 sm:px-8 flex justify-between items-center border-b border-slate-800">
+    <div className="min-h-screen text-white selection:bg-indigo-500/30 relative z-0">
+      <AnimatedBackground />
+      <header className="py-4 px-4 sm:px-8 flex justify-between items-center border-b border-slate-800 relative z-10">
         <h1 className="text-xl font-bold text-slate-100">AI Webpage Generator</h1>
         <a 
           href="https://github.com/google/labs-prototypes" 
@@ -108,7 +140,7 @@ const App: React.FC = () => {
         </a>
       </header>
 
-      <main className="py-12 px-4 sm:px-8">
+      <main className="py-12 px-4 sm:px-8 relative z-10">
         <div className="container mx-auto">
           <PromptInput 
             onGenerate={handleGenerate} 
@@ -139,8 +171,10 @@ const App: React.FC = () => {
       
       {selectedVersionForPreview && (
         <FullScreenPreview 
-          version={selectedVersionForPreview} 
+          currentVersion={selectedVersionForPreview}
+          versions={versions}
           onClose={() => setSelectedVersionForPreview(null)} 
+          onVersionChange={setSelectedVersionForPreview}
         />
       )}
     </div>

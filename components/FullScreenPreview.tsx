@@ -5,10 +5,14 @@ import { CloseIcon } from './icons/CloseIcon';
 import { DesktopIcon } from './icons/DesktopIcon';
 import { TabletIcon } from './icons/TabletIcon';
 import { MobileIcon } from './icons/MobileIcon';
+import { ChevronLeftIcon } from './icons/ChevronLeftIcon';
+import { ChevronRightIcon } from './icons/ChevronRightIcon';
 
 interface FullScreenPreviewProps {
-  version: Version;
+  currentVersion: Version;
+  versions: Version[];
   onClose: () => void;
+  onVersionChange: (newVersion: Version) => void;
 }
 
 type Device = 'desktop' | 'tablet' | 'mobile';
@@ -19,7 +23,7 @@ const deviceDimensions: Record<Device, { width: string; height: string }> = {
   mobile: { width: '375px', height: '812px' },
 };
 
-export const FullScreenPreview: React.FC<FullScreenPreviewProps> = ({ version, onClose }) => {
+export const FullScreenPreview: React.FC<FullScreenPreviewProps> = ({ currentVersion, versions, onClose, onVersionChange }) => {
   const [iframeSrcDoc, setIframeSrcDoc] = useState('');
   const [activeDevice, setActiveDevice] = useState<Device>('desktop');
 
@@ -33,12 +37,12 @@ export const FullScreenPreview: React.FC<FullScreenPreviewProps> = ({ version, o
           <script src="https://cdn.tailwindcss.com"></script>
         </head>
         <body>
-          ${version.code}
+          ${currentVersion.code}
         </body>
       </html>
     `;
     setIframeSrcDoc(htmlTemplate);
-  }, [version.code]);
+  }, [currentVersion.code]);
 
   useEffect(() => {
     const handleEsc = (event: KeyboardEvent) => {
@@ -54,13 +58,38 @@ export const FullScreenPreview: React.FC<FullScreenPreviewProps> = ({ version, o
     };
   }, [onClose]);
 
+  const currentIndex = versions.findIndex(v => v.id === currentVersion.id);
+  const canGoPrevious = currentIndex > 0;
+  const canGoNext = currentIndex < versions.length - 1;
+
+  const handlePrevious = () => {
+    if (canGoPrevious) {
+      onVersionChange(versions[currentIndex - 1]);
+    }
+  };
+
+  const handleNext = () => {
+    if (canGoNext) {
+      onVersionChange(versions[currentIndex + 1]);
+    }
+  };
+
   return (
     <div className="fixed inset-0 z-50 bg-slate-900 flex flex-col">
       <header className="flex items-center p-4 border-b border-slate-700 bg-slate-800 flex-shrink-0">
         <div className="flex-1">
-            <h2 className="text-lg sm:text-xl font-bold text-white truncate">{version.title}</h2>
+            <h2 className="text-lg sm:text-xl font-bold text-white truncate">{currentVersion.title}</h2>
         </div>
-        <div className="flex-1 flex justify-center">
+        <div className="flex-1 flex justify-center items-center gap-4">
+            <button 
+              onClick={handlePrevious} 
+              disabled={!canGoPrevious}
+              className="p-2 rounded-full transition-colors text-slate-400 hover:bg-slate-700 hover:text-white disabled:text-slate-600 disabled:hover:bg-transparent disabled:cursor-not-allowed"
+              title="Previous version"
+              aria-label="Previous version"
+            >
+                <ChevronLeftIcon className="h-6 w-6" />
+            </button>
             <div className="flex items-center gap-1 sm:gap-2 bg-slate-700 p-1 rounded-md">
                 <button
                     onClick={() => setActiveDevice('desktop')}
@@ -87,6 +116,15 @@ export const FullScreenPreview: React.FC<FullScreenPreviewProps> = ({ version, o
                     <MobileIcon className="h-5 w-5" />
                 </button>
             </div>
+            <button 
+              onClick={handleNext} 
+              disabled={!canGoNext}
+              className="p-2 rounded-full transition-colors text-slate-400 hover:bg-slate-700 hover:text-white disabled:text-slate-600 disabled:hover:bg-transparent disabled:cursor-not-allowed"
+              title="Next version"
+              aria-label="Next version"
+            >
+                <ChevronRightIcon className="h-6 w-6" />
+            </button>
         </div>
         <div className="flex-1 flex justify-end">
             <button onClick={onClose} className="text-slate-400 hover:text-white transition-colors">
@@ -106,7 +144,7 @@ export const FullScreenPreview: React.FC<FullScreenPreviewProps> = ({ version, o
           }}
         >
           <iframe
-            title={`${version.title} - ${activeDevice} view`}
+            title={`${currentVersion.title} - ${activeDevice} view`}
             srcDoc={iframeSrcDoc}
             sandbox="allow-scripts allow-same-origin"
             className="w-full h-full border-0"
