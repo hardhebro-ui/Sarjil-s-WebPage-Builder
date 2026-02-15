@@ -2,14 +2,16 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { SparklesIcon } from './icons/SparklesIcon';
 import { LoadingSpinnerIcon } from './icons/LoadingSpinnerIcon';
+import { XCircleIcon } from './icons/XCircleIcon';
 
 interface PromptInputProps {
   onGenerate: (prompt: string) => void;
   isGenerating: boolean;
   suggestions: string[];
+  onCancel: () => void;
 }
 
-export const PromptInput: React.FC<PromptInputProps> = ({ onGenerate, isGenerating, suggestions }) => {
+export const PromptInput: React.FC<PromptInputProps> = ({ onGenerate, isGenerating, suggestions, onCancel }) => {
   const [prompt, setPrompt] = useState('');
   const [showSuggestions, setShowSuggestions] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -58,23 +60,35 @@ export const PromptInput: React.FC<PromptInputProps> = ({ onGenerate, isGenerati
               disabled={isGenerating}
               autoComplete="off"
             />
-            <button
-              type="submit"
-              disabled={isGenerating || !prompt.trim()}
-              className="flex items-center justify-center bg-indigo-600 text-white font-semibold rounded-md px-6 py-3 disabled:bg-indigo-400 disabled:cursor-not-allowed hover:bg-indigo-500 transition-all duration-200 transform hover:scale-105"
-            >
-              {isGenerating ? (
-                <>
+            {isGenerating ? (
+              <>
+                <button
+                  type="button"
+                  disabled
+                  className="flex items-center justify-center bg-indigo-500/70 text-white font-semibold rounded-md px-6 py-3 cursor-not-allowed"
+                >
                   <LoadingSpinnerIcon className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" />
                   Generating...
-                </>
-              ) : (
-                <>
-                  <SparklesIcon className="h-5 w-5 mr-2" />
-                  Generate
-                </>
-              )}
-            </button>
+                </button>
+                <button
+                  type="button"
+                  onClick={onCancel}
+                  className="flex items-center justify-center bg-slate-600 text-white font-semibold rounded-md px-6 py-3 hover:bg-slate-500 transition-colors"
+                >
+                  <XCircleIcon className="h-5 w-5 mr-2" />
+                  Cancel
+                </button>
+              </>
+            ) : (
+              <button
+                type="submit"
+                disabled={!prompt.trim()}
+                className="flex items-center justify-center bg-indigo-600 text-white font-semibold rounded-md px-6 py-3 disabled:bg-indigo-400 disabled:cursor-not-allowed hover:bg-indigo-500 transition-all duration-200 transform hover:scale-105"
+              >
+                <SparklesIcon className="h-5 w-5 mr-2" />
+                Generate
+              </button>
+            )}
           </div>
         </form>
         {showSuggestions && suggestions.length > 0 && (

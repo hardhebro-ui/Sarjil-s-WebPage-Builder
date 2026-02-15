@@ -1,5 +1,5 @@
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useRef } from 'react';
 import { PromptInput } from './components/PromptInput';
 import { PreviewCard } from './components/PreviewCard';
 import { ExportModal } from './components/ExportModal';
@@ -35,8 +35,16 @@ const App: React.FC = () => {
   const [isGenerating, setIsGenerating] = useState(false);
   const [selectedVersionForExport, setSelectedVersionForExport] = useState<Version | null>(null);
   const [selectedVersionForPreview, setSelectedVersionForPreview] = useState<Version | null>(null);
+  const generationCancelled = useRef(false);
+
+  const handleCancel = () => {
+    generationCancelled.current = true;
+    setIsGenerating(false);
+    setVersions(initialVersions);
+  };
 
   const handleGenerate = useCallback(async (prompt: string) => {
+    generationCancelled.current = false;
     setIsGenerating(true);
     const versionsToGenerate = initialVersions.map(v => ({ 
       ...v, 
@@ -53,6 +61,7 @@ const App: React.FC = () => {
       const augmentedPrompt = `${prompt} ${styleModifier}`;
 
       const onHtmlChunk = (chunk: string) => {
+        if (generationCancelled.current) return;
         setVersions(prev => {
           const newVersions = [...prev];
           if (newVersions[index] && newVersions[index].status === 'generating') {
@@ -66,6 +75,7 @@ const App: React.FC = () => {
       };
       
       const onProgressUpdate = (progress: number) => {
+        if (generationCancelled.current) return;
         setVersions(prev => {
           const newVersions = [...prev];
           const currentStatus = newVersions[index]?.status;
@@ -80,6 +90,7 @@ const App: React.FC = () => {
       };
       
       const onHtmlComplete = (fullHtml: string) => {
+        if (generationCancelled.current) return;
          setVersions(prev => {
           const newVersions = [...prev];
           if (newVersions[index] && newVersions[index].status === 'generating') {
@@ -94,6 +105,7 @@ const App: React.FC = () => {
       };
 
       return generateCodeForAllFormats(augmentedPrompt, onHtmlChunk, onProgressUpdate, onHtmlComplete).then(allCode => {
+        if (generationCancelled.current) return;
         setVersions(prev => {
           const newVersions = [...prev];
           if (newVersions[index]) {
@@ -117,10 +129,13 @@ const App: React.FC = () => {
     try {
       await Promise.all(generationPromises);
     } catch (error) {
+      if (generationCancelled.current) return;
       console.error("Generation failed:", error);
       setVersions(prev => prev.map(v => ({ ...v, status: 'error', progress: 0 })));
     } finally {
-      setIsGenerating(false);
+      if (!generationCancelled.current) {
+        setIsGenerating(false);
+      }
     }
   }, []);
 
@@ -130,7 +145,7 @@ const App: React.FC = () => {
       <header className="py-4 px-4 sm:px-8 flex justify-between items-center border-b border-slate-800 relative z-10">
         <h1 className="text-xl font-bold text-slate-100">AI Webpage Generator</h1>
         <a 
-          href="https://github.com/google/labs-prototypes" 
+          href="https://github.com/hardhebro-ui/Sarjil-s-WebPage-Builder" 
           target="_blank" 
           rel="noopener noreferrer" 
           className="text-slate-400 hover:text-white transition-colors"
@@ -146,6 +161,7 @@ const App: React.FC = () => {
             onGenerate={handleGenerate} 
             isGenerating={isGenerating}
             suggestions={promptSuggestions}
+            onCancel={handleCancel}
           />
 
           <div className="mt-16 grid grid-cols-1 lg:grid-cols-3 gap-8">
