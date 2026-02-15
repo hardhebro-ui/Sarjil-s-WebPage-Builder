@@ -6,9 +6,10 @@ import { ExportModal } from './components/ExportModal';
 import { FullScreenPreview } from './components/FullScreenPreview';
 import { GithubIcon } from './components/icons/GithubIcon';
 import { AnimatedBackground } from './components/AnimatedBackground';
+import { DesignPlaceholderIcon } from './components/icons/DesignPlaceholderIcon';
 import type { Version } from './types';
 import { ExportFormat } from './types';
-import { generateCodeForAllFormats } from './services/geminiService';
+import { generateHtmlStream, generateComponentCode } from './services/geminiService';
 
 const promptSuggestions = [
   'A modern landing page for a new meditation app',
@@ -17,10 +18,10 @@ const promptSuggestions = [
   'An e-commerce product page for a stylish backpack',
 ];
 
-const initialVersions: Version[] = [
-  { id: 1, title: 'Minimal & Clean', prompt: '', code: '', status: 'idle', convertedCode: {}, progress: 0 },
-  { id: 2, title: 'Bold Startup', prompt: '', code: '', status: 'idle', convertedCode: {}, progress: 0 },
-  { id: 3, title: 'Creative & Modern', prompt: '', code: '', status: 'idle', convertedCode: {}, progress: 0 },
+const STYLE_TEMPLATES: Omit<Version, 'prompt' | 'code' | 'status' | 'convertedCode'>[] = [
+  { id: 1, title: 'Minimal & Clean' },
+  { id: 2, title: 'Bold Startup' },
+  { id: 3, title: 'Creative & Modern' },
 ];
 
 const styleModifiers: Record<string, string> = {
@@ -29,113 +30,91 @@ const styleModifiers: Record<string, string> = {
   'Creative & Modern': 'with a creative and artistic modern design. Feel free to use unconventional layouts, interesting color combinations, and unique visual elements.',
 };
 
-
 const App: React.FC = () => {
-  const [versions, setVersions] = useState<Version[]>(initialVersions);
+  const [versions, setVersions] = useState<Version[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
-  const [selectedVersionForExport, setSelectedVersionForExport] = useState<Version | null>(null);
-  const [selectedVersionForPreview, setSelectedVersionForPreview] = useState<Version | null>(null);
+  const [selectedVersionIdForExport, setSelectedVersionIdForExport] = useState<number | null>(null);
+  const [selectedVersionIdForPreview, setSelectedVersionIdForPreview] = useState<number | null>(null);
   const generationCancelled = useRef(false);
+
+  const selectedVersionForExport = versions.find(v => v.id === selectedVersionIdForExport) || null;
+  const selectedVersionForPreview = versions.find(v => v.id === selectedVersionIdForPreview) || null;
 
   const handleCancel = () => {
     generationCancelled.current = true;
     setIsGenerating(false);
-    setVersions(initialVersions);
+    setVersions([]);
   };
 
-  const handleGenerate = useCallback(async (prompt: string) => {
+  const handleGenerate = useCallback(async (prompt: string, selectedFormats: ExportFormat[]) => {
     generationCancelled.current = false;
     setIsGenerating(true);
-    const versionsToGenerate = initialVersions.map(v => ({ 
-      ...v, 
-      prompt, 
-      status: 'generating' as const, 
+
+    const versionsToGenerate = STYLE_TEMPLATES.map(template => ({
+      ...template,
+      prompt,
+      status: 'generating' as const,
       code: '',
-      convertedCode: {},
-      progress: 0,
+      convertedCode: selectedFormats
+        .filter(f => f !== ExportFormat.HTML)
+        .reduce((acc, format) => {
+          acc[format] = null; // null indicates "generating"
+          return acc;
+        }, {} as Partial<Record<ExportFormat, string | null>>),
     }));
     setVersions(versionsToGenerate);
 
-    const generationPromises = versionsToGenerate.map((version, index) => {
-      const styleModifier = styleModifiers[version.title] || '';
-      const augmentedPrompt = `${prompt} ${styleModifier}`;
+    const allPromises = versionsToGenerate.flatMap((version, index) => {
+        const styleModifier = styleModifiers[version.title] || '';
+        const augmentedPrompt = `${prompt} ${styleModifier}`;
 
-      const onHtmlChunk = (chunk: string) => {
-        if (generationCancelled.current) return;
-        setVersions(prev => {
-          const newVersions = [...prev];
-          if (newVersions[index] && newVersions[index].status === 'generating') {
-            newVersions[index] = { 
-              ...newVersions[index], 
-              code: newVersions[index].code + chunk 
-            };
-          }
-          return newVersions;
+        const htmlPromise = generateHtmlStream(augmentedPrompt, (chunk) => {
+            if (generationCancelled.current) return;
+            setVersions(prev => {
+                const newVersions = [...prev];
+                if (newVersions[index]?.status === 'generating') {
+                    newVersions[index] = { ...newVersions[index], code: newVersions[index].code + chunk };
+                }
+                return newVersions;
+            });
+        }).then(fullHtml => {
+            if (generationCancelled.current) return;
+            setVersions(prev => {
+                const newVersions = [...prev];
+                if (newVersions[index]) {
+                    newVersions[index] = { ...newVersions[index], status: 'preview-ready', code: fullHtml };
+                }
+                return newVersions;
+            });
         });
-      };
-      
-      const onProgressUpdate = (progress: number) => {
-        if (generationCancelled.current) return;
-        setVersions(prev => {
-          const newVersions = [...prev];
-          const currentStatus = newVersions[index]?.status;
-          if (newVersions[index] && (currentStatus === 'generating' || currentStatus === 'preview-ready')) {
-            newVersions[index] = {
-              ...newVersions[index],
-              progress: progress,
-            };
-          }
-          return newVersions;
-        });
-      };
-      
-      const onHtmlComplete = (fullHtml: string) => {
-        if (generationCancelled.current) return;
-         setVersions(prev => {
-          const newVersions = [...prev];
-          if (newVersions[index] && newVersions[index].status === 'generating') {
-            newVersions[index] = { 
-              ...newVersions[index], 
-              code: fullHtml,
-              status: 'preview-ready',
-            };
-          }
-          return newVersions;
-        });
-      };
 
-      return generateCodeForAllFormats(augmentedPrompt, onHtmlChunk, onProgressUpdate, onHtmlComplete).then(allCode => {
-        if (generationCancelled.current) return;
-        setVersions(prev => {
-          const newVersions = [...prev];
-          if (newVersions[index]) {
-            newVersions[index] = {
-              ...newVersions[index],
-              status: 'completed',
-              code: allCode.html, // Ensure final HTML is set
-              progress: 100,
-              convertedCode: {
-                [ExportFormat.REACT]: allCode.react,
-                [ExportFormat.VUE]: allCode.vue,
-                [ExportFormat.SVELTE]: allCode.svelte,
-              },
-            };
-          }
-          return newVersions;
-        });
-      });
+        const componentPromises = (Object.keys(version.convertedCode || {}) as ExportFormat[])
+            .map(format => 
+                generateComponentCode(augmentedPrompt, format)
+                    .then(generatedCode => {
+                        if (generationCancelled.current) return;
+                        setVersions(prev => prev.map(v => v.id === version.id ? { ...v, convertedCode: { ...v.convertedCode, [format]: generatedCode } } : v));
+                    })
+                    .catch(err => {
+                        console.error(`Failed to generate ${format} for ${version.title}`, err);
+                        if (generationCancelled.current) return;
+                        setVersions(prev => prev.map(v => v.id === version.id ? { ...v, convertedCode: { ...v.convertedCode, [format]: `// Error generating code. Please try again.` } } : v));
+                    })
+            );
+
+        return [htmlPromise, ...componentPromises];
     });
 
     try {
-      await Promise.all(generationPromises);
+        await Promise.all(allPromises);
     } catch (error) {
-      if (generationCancelled.current) return;
-      console.error("Generation failed:", error);
-      setVersions(prev => prev.map(v => ({ ...v, status: 'error', progress: 0 })));
+        if (generationCancelled.current) { setVersions([]); return; };
+        console.error("Generation failed:", error);
+        setVersions(prev => prev.map(v => ({ ...v, status: 'error' })));
     } finally {
-      if (!generationCancelled.current) {
-        setIsGenerating(false);
-      }
+        if (!generationCancelled.current) {
+            setIsGenerating(false);
+        }
     }
   }, []);
 
@@ -164,33 +143,41 @@ const App: React.FC = () => {
             onCancel={handleCancel}
           />
 
-          <div className="mt-16 grid grid-cols-1 lg:grid-cols-3 gap-8">
-            {versions.map((version) => (
-              <PreviewCard
-                key={version.id}
-                version={version}
-                isGenerating={isGenerating}
-                onSelect={() => setSelectedVersionForExport(version)}
-                onFullScreen={() => setSelectedVersionForPreview(version)}
-              />
-            ))}
-          </div>
+          {versions.length > 0 ? (
+            <div className="mt-16 grid grid-cols-1 lg:grid-cols-3 gap-8">
+              {versions.map((version) => (
+                <PreviewCard
+                  key={version.id}
+                  version={version}
+                  isGenerating={isGenerating}
+                  onSelect={() => setSelectedVersionIdForExport(version.id)}
+                  onFullScreen={() => setSelectedVersionIdForPreview(version.id)}
+                />
+              ))}
+            </div>
+          ) : (
+             <div className="mt-16 text-center border-2 border-dashed border-slate-700 rounded-lg p-12 max-w-4xl mx-auto">
+              <DesignPlaceholderIcon className="mx-auto h-16 w-16 text-slate-600 mb-4" />
+              <h3 className="text-xl font-semibold text-slate-300">Your generated designs will appear here</h3>
+              <p className="text-slate-500 mt-2">Enter a description and select your desired code formats to get started.</p>
+            </div>
+          )}
         </div>
       </main>
       
       {selectedVersionForExport && (
         <ExportModal 
           version={selectedVersionForExport} 
-          onClose={() => setSelectedVersionForExport(null)} 
+          onClose={() => setSelectedVersionIdForExport(null)} 
         />
       )}
       
       {selectedVersionForPreview && (
         <FullScreenPreview 
           currentVersion={selectedVersionForPreview}
-          versions={versions}
-          onClose={() => setSelectedVersionForPreview(null)} 
-          onVersionChange={setSelectedVersionForPreview}
+          versions={versions.filter(v => v.status === 'preview-ready')}
+          onClose={() => setSelectedVersionIdForPreview(null)} 
+          onVersionChange={(newVersion) => setSelectedVersionIdForPreview(newVersion.id)}
         />
       )}
     </div>

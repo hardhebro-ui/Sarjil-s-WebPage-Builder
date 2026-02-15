@@ -17,7 +17,7 @@ interface ExportModalProps {
   onClose: () => void;
 }
 
-const formatOptions = [
+const allFormatOptions = [
   { id: ExportFormat.HTML, label: 'HTML', icon: HtmlIcon },
   { id: ExportFormat.REACT, label: 'React', icon: ReactIcon },
   { id: ExportFormat.VUE, label: 'Vue', icon: VueIcon },
@@ -27,6 +27,17 @@ const formatOptions = [
 export const ExportModal: React.FC<ExportModalProps> = ({ version, onClose }) => {
   const [activeFormat, setActiveFormat] = useState<ExportFormat>(ExportFormat.HTML);
   const [isDownloading, setIsDownloading] = useState(false);
+
+  const availableFormats = allFormatOptions.filter(
+    option => option.id === ExportFormat.HTML || version.convertedCode?.hasOwnProperty(option.id)
+  );
+
+  useEffect(() => {
+    // If the active format is no longer available (e.g. after a re-generation), default to HTML
+    if (!availableFormats.some(f => f.id === activeFormat)) {
+      setActiveFormat(ExportFormat.HTML);
+    }
+  }, [version, activeFormat, availableFormats]);
 
   useEffect(() => {
     const handleEsc = (event: KeyboardEvent) => {
@@ -43,7 +54,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({ version, onClose }) =>
     ...(version.convertedCode || {}),
   };
 
-  const currentCode = codeForFormat[activeFormat] || '';
+  const currentCode = codeForFormat[activeFormat];
 
   const handleDownload = async () => {
     if (!currentCode) return;
@@ -89,7 +100,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({ version, onClose }) =>
         <div className="flex flex-col md:flex-row flex-grow min-h-0">
           <aside className="w-full md:w-48 p-4 border-b md:border-b-0 md:border-r border-slate-700 flex-shrink-0">
             <nav className="flex md:flex-col gap-2">
-              {formatOptions.map(({ id, label, icon: Icon }) => (
+              {availableFormats.map(({ id, label, icon: Icon }) => (
                 <button
                   key={id}
                   onClick={() => setActiveFormat(id)}
@@ -107,12 +118,12 @@ export const ExportModal: React.FC<ExportModalProps> = ({ version, onClose }) =>
           </aside>
 
           <main className="flex-grow p-1 overflow-auto bg-slate-900">
-            {currentCode ? (
+            {typeof currentCode === 'string' ? (
               <CodeBlock code={currentCode} language={activeFormat === 'html' ? 'html' : 'javascript'} />
             ) : (
                <div className="h-full flex flex-col items-center justify-center p-4">
                 <LoadingSpinnerIcon className="animate-spin h-8 w-8 text-white mb-4" />
-                <p className="text-slate-300 text-center">Loading code...</p>
+                <p className="text-slate-300 text-center">Generating code for {activeFormat}...</p>
               </div>
             )}
           </main>

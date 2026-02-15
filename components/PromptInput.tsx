@@ -3,17 +3,26 @@ import React, { useState, useRef, useEffect } from 'react';
 import { SparklesIcon } from './icons/SparklesIcon';
 import { LoadingSpinnerIcon } from './icons/LoadingSpinnerIcon';
 import { XCircleIcon } from './icons/XCircleIcon';
+import { ExportFormat } from '../types';
 
 interface PromptInputProps {
-  onGenerate: (prompt: string) => void;
+  onGenerate: (prompt: string, selectedFormats: ExportFormat[]) => void;
   isGenerating: boolean;
   suggestions: string[];
   onCancel: () => void;
 }
 
+const formatOptions = [
+    { id: ExportFormat.HTML, label: 'HTML' },
+    { id: ExportFormat.REACT, label: 'React' },
+    { id: ExportFormat.VUE, label: 'Vue' },
+    { id: ExportFormat.SVELTE, label: 'Svelte' },
+];
+
 export const PromptInput: React.FC<PromptInputProps> = ({ onGenerate, isGenerating, suggestions, onCancel }) => {
   const [prompt, setPrompt] = useState('');
   const [showSuggestions, setShowSuggestions] = useState(false);
+  const [selectedFormats, setSelectedFormats] = useState<ExportFormat[]>([ExportFormat.HTML]);
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -31,10 +40,20 @@ export const PromptInput: React.FC<PromptInputProps> = ({ onGenerate, isGenerati
     setShowSuggestions(false);
   };
 
+  const handleFormatChange = (format: ExportFormat) => {
+    // HTML is required for preview, so it cannot be deselected.
+    if (format === ExportFormat.HTML) return;
+    setSelectedFormats(prev =>
+      prev.includes(format)
+        ? prev.filter(f => f !== format)
+        : [...prev, format]
+    );
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (prompt.trim() && !isGenerating) {
-      onGenerate(prompt);
+    if (prompt.trim() && !isGenerating && selectedFormats.length > 0) {
+      onGenerate(prompt, selectedFormats);
       setShowSuggestions(false);
     }
   };
@@ -45,7 +64,7 @@ export const PromptInput: React.FC<PromptInputProps> = ({ onGenerate, isGenerati
         Describe the webpage you want to create
       </h2>
       <p className="text-lg text-slate-400 max-w-2xl mx-auto mb-8">
-        Enter a detailed description, and our AI will generate three unique designs for you in real-time.
+        Enter a detailed description, select your desired output formats, and our AI will generate unique designs for you.
       </p>
       <div className="max-w-3xl mx-auto relative" ref={containerRef}>
         <form onSubmit={handleSubmit}>
@@ -82,13 +101,27 @@ export const PromptInput: React.FC<PromptInputProps> = ({ onGenerate, isGenerati
             ) : (
               <button
                 type="submit"
-                disabled={!prompt.trim()}
+                disabled={!prompt.trim() || selectedFormats.length === 0}
                 className="flex items-center justify-center bg-indigo-600 text-white font-semibold rounded-md px-6 py-3 disabled:bg-indigo-400 disabled:cursor-not-allowed hover:bg-indigo-500 transition-all duration-200 transform hover:scale-105"
               >
                 <SparklesIcon className="h-5 w-5 mr-2" />
                 Generate
               </button>
             )}
+          </div>
+          <div className="flex justify-center flex-wrap gap-4 sm:gap-8 mt-6">
+            {formatOptions.map(format => (
+              <label key={format.id} className={`flex items-center text-slate-300 select-none ${format.id === ExportFormat.HTML ? 'cursor-not-allowed opacity-75' : 'cursor-pointer'}`}>
+                <input
+                  type="checkbox"
+                  checked={selectedFormats.includes(format.id)}
+                  onChange={() => handleFormatChange(format.id)}
+                  disabled={format.id === ExportFormat.HTML}
+                  className="h-5 w-5 rounded border-slate-600 bg-slate-700 text-indigo-600 focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-900 focus:ring-indigo-500 disabled:opacity-50"
+                />
+                <span className="ml-3">{format.label}</span>
+              </label>
+            ))}
           </div>
         </form>
         {showSuggestions && suggestions.length > 0 && (

@@ -36,66 +36,37 @@ const getComponentPrompt = (prompt: string, format: ExportFormat) => {
     `;
 };
 
-export async function generateCodeForAllFormats(
+export async function generateHtmlStream(
     prompt: string, 
-    onHtmlChunk: (chunk: string) => void,
-    onProgressUpdate: (progress: number) => void,
-    onHtmlComplete: (fullHtml: string) => void
-): Promise<{ html: string; react: string; vue: string; svelte: string; }> {
-    
-    onProgressUpdate(10);
+    onHtmlChunk: (chunk: string) => void
+): Promise<string> {
+    const response = await ai.models.generateContentStream({
+        model: 'gemini-3-flash-preview',
+        contents: prompt,
+        config: {
+            systemInstruction: getHtmlSystemInstruction(),
+        },
+    });
 
-    const htmlStreamPromise = (async () => {
-        const response = await ai.models.generateContentStream({
-            model: 'gemini-3-flash-preview',
-            contents: prompt,
-            config: {
-                systemInstruction: getHtmlSystemInstruction(),
-            },
-        });
-
-        let fullHtml = '';
-        for await (const chunk of response) {
-            const text = chunk.text;
-            if (text) {
-                fullHtml += text;
-                onHtmlChunk(text);
-            }
+    let fullHtml = '';
+    for await (const chunk of response) {
+        const text = chunk.text;
+        if (text) {
+            fullHtml += text;
+            onHtmlChunk(text);
         }
-        onHtmlComplete(fullHtml); // Signal that HTML is done
-        return fullHtml;
-    })();
-
-    const generateComponent = async (format: ExportFormat) => {
-        const response = await ai.models.generateContent({
-            model: 'gemini-3-pro-preview',
-            contents: getComponentPrompt(prompt, format),
-        });
-        const text = response.text;
-        if (!text) {
-            throw new Error(`Failed to generate ${format} code: empty response from API.`);
-        }
-        return text.trim();
     }
-    
-    // Wait for HTML to be ready before starting component generation,
-    // to ensure the 'preview-ready' state is handled cleanly.
-    const htmlCode = await htmlStreamPromise;
-    onProgressUpdate(25);
+    return fullHtml;
+}
 
-    const reactCode = await generateComponent(ExportFormat.REACT);
-    onProgressUpdate(50);
-
-    const vueCode = await generateComponent(ExportFormat.VUE);
-    onProgressUpdate(75);
-
-    const svelteCode = await generateComponent(ExportFormat.SVELTE);
-    onProgressUpdate(100);
-    
-    return {
-        html: htmlCode,
-        react: reactCode,
-        vue: vueCode,
-        svelte: svelteCode,
-    };
+export async function generateComponentCode(prompt: string, format: ExportFormat): Promise<string> {
+    const response = await ai.models.generateContent({
+        model: 'gemini-3-pro-preview',
+        contents: getComponentPrompt(prompt, format),
+    });
+    const text = response.text;
+    if (!text) {
+        throw new Error(`Failed to generate ${format} code: empty response from API.`);
+    }
+    return text.trim();
 }

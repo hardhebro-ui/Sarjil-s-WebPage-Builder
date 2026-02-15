@@ -47,20 +47,10 @@ export const PreviewCard: React.FC<PreviewCardProps> = ({ version, onSelect, onF
       );
     }
     if (version.status === 'generating') {
-      const progress = version.progress || 0;
       return (
         <div className="absolute inset-0 bg-slate-800/80 backdrop-blur-sm flex flex-col items-center justify-center p-4 transition-opacity duration-300">
           <LoadingSpinnerIcon className="animate-spin h-12 w-12 text-indigo-500" />
-          <p className="text-slate-300 text-center mt-4 mb-3">Generating preview...</p>
-          <div className="w-full max-w-xs bg-slate-600 rounded-full h-3 relative overflow-hidden">
-            <div 
-              className="bg-indigo-500 h-full rounded-full transition-all duration-500 ease-out" 
-              style={{ width: `${progress}%` }}
-            ></div>
-             <span className="absolute inset-0 flex items-center justify-center text-[10px] font-bold text-white tracking-wider">
-              {Math.round(progress)}%
-            </span>
-          </div>
+          <p className="text-slate-300 text-center mt-4">Generating preview...</p>
         </div>
       );
     }
@@ -103,7 +93,7 @@ export const PreviewCard: React.FC<PreviewCardProps> = ({ version, onSelect, onF
       <div className="p-4 bg-slate-800/50">
         <button
           onClick={onSelect}
-          disabled={version.status !== 'preview-ready' && version.status !== 'completed'}
+          disabled={version.status !== 'preview-ready'}
           className="w-full bg-slate-700 text-white font-semibold rounded-md px-4 py-2 disabled:bg-slate-600 disabled:text-slate-400 disabled:cursor-not-allowed hover:bg-slate-600 transition-colors flex items-center justify-center"
         >
           <CheckIcon className="h-5 w-5 mr-2" />
