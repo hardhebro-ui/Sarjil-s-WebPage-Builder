@@ -24,6 +24,14 @@ const STYLE_TEMPLATES: Omit<Version, 'prompt' | 'code' | 'status' | 'convertedCo
   { id: 3, title: 'Creative & Modern' },
 ];
 
+const initialVersions: Version[] = STYLE_TEMPLATES.map(template => ({
+  ...template,
+  prompt: '',
+  code: '',
+  status: 'idle',
+  convertedCode: {},
+}));
+
 const styleModifiers: Record<string, string> = {
   'Minimal & Clean': 'with a minimal and clean design aesthetic. Emphasize whitespace, typography, and a simple, elegant color palette.',
   'Bold Startup': 'with a bold, modern design suitable for a tech startup. Use vibrant colors, strong typography, and clear calls-to-action.',
@@ -31,7 +39,7 @@ const styleModifiers: Record<string, string> = {
 };
 
 const App: React.FC = () => {
-  const [versions, setVersions] = useState<Version[]>([]);
+  const [versions, setVersions] = useState<Version[]>(initialVersions);
   const [isGenerating, setIsGenerating] = useState(false);
   const [selectedVersionIdForExport, setSelectedVersionIdForExport] = useState<number | null>(null);
   const [selectedVersionIdForPreview, setSelectedVersionIdForPreview] = useState<number | null>(null);
@@ -43,7 +51,7 @@ const App: React.FC = () => {
   const handleCancel = () => {
     generationCancelled.current = true;
     setIsGenerating(false);
-    setVersions([]);
+    setVersions(initialVersions);
   };
 
   const handleGenerate = useCallback(async (prompt: string, selectedFormats: ExportFormat[]) => {
@@ -108,7 +116,7 @@ const App: React.FC = () => {
     try {
         await Promise.all(allPromises);
     } catch (error) {
-        if (generationCancelled.current) { setVersions([]); return; };
+        if (generationCancelled.current) { setVersions(initialVersions); return; };
         console.error("Generation failed:", error);
         setVersions(prev => prev.map(v => ({ ...v, status: 'error' })));
     } finally {
